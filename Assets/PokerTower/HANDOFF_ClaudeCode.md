@@ -22,7 +22,7 @@
 - CLI 사용 팁: 프로젝트 경로에 공백이 있어 `--project-path` 대신 `UNITY_PROJECT_PATH` 환경 변수를 쓴다. 명령 이름은 `test run`, `console get`, `capture game_view`, `script eval`.
 - Game 뷰는 1920×1080 고정으로 맞춰 둠. 프로젝트는 Linear 색 공간이라 반투명 UI 패널 뒤 글자가 생각보다 밝게 비친다 (가려야 하면 불투명으로).
 - 저장: PlayerPrefs `PokerTower.Floor`(현재 층), `PokerTower.Progress`(형식 `v3;hp,spd,draw,def,dmg,crit;남은포인트;최고클리어층;속성강화7개;고를후보` — 스탯 값은 레벨. 예전 `v2`·`v1`도 읽음).
-- git 저장소가 아니다. 버전 관리 설정 여부는 사용자에게 먼저 물어본다.
+- git 저장소: https://github.com/wlghks4689/POKER-TOWER (main). Library·Temp·Logs·UserSettings·Screenshots·자동 생성 .csproj는 .gitignore로 제외. 커밋·푸시는 사용자가 요청할 때만.
 
 ## 3. 구조
 | 경로 | 내용 |
