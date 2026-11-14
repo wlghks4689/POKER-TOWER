@@ -1,0 +1,25 @@
+# Unity 자동 생성 폴더 (커밋하지 않음)
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+
+# IDE가 자동 생성하는 프로젝트 파일
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+.vs/
+.idea/
+
+# 검증용 스크린샷
+/Screenshots/
+
+# OS
+.DS_Store
+Thumbs.db
