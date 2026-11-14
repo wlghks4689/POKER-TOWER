@@ -103,6 +103,7 @@ namespace PokerTower.Game
             BuildReveal();
             BuildBattle();
             BuildResult();
+            BuildTower();
             BuildGraveyard();
             BuildStats();
             ShowTitle();
@@ -189,6 +190,8 @@ namespace PokerTower.Game
             _titleScreen.gameObject.SetActive(screen == _titleScreen);
             _revealScreen.gameObject.SetActive(screen == _revealScreen);
             _battleScreen.gameObject.SetActive(screen == _battleScreen);
+            _towerScreen.gameObject.SetActive(screen == _towerScreen);
+            _boostScreen.gameObject.SetActive(false);
             _resultScreen.gameObject.SetActive(false);
             _graveScreen.gameObject.SetActive(false);
         }
@@ -214,7 +217,7 @@ namespace PokerTower.Game
                 new Color(0.2f, 0.45f, 0.8f), 36, () =>
                 {
                     _floor = Mathf.Max(1, PlayerPrefs.GetInt(SaveKeyFloor, 1));
-                    StartStage();
+                    ShowTower();
                 });
             Ui.MakeButton(_titleScreen, "NewGame", "새로하기", center, new Vector2(170, 0), new Vector2(300, 90),
                 new Color(0.55f, 0.25f, 0.25f), 36, () =>
@@ -223,7 +226,7 @@ namespace PokerTower.Game
                     PlayerPrefs.SetInt(SaveKeyFloor, 1);
                     _progress.Reset(); // [가정] 새로하기 시 스탯 포인트 초기화
                     SaveProgress();
-                    StartStage();
+                    ShowTower();
                 });
             var ver = Ui.Label(_titleScreen, "Ver", "Unity 프로토타입 v0.2 · 기획서 v1.2 (2026-11-14) 기준", 22, Ui.TextDim, TextAnchor.LowerRight, 20f);
             ver.raycastTarget = false;
@@ -1109,7 +1112,7 @@ namespace PokerTower.Game
             _resultScreen.gameObject.SetActive(false);
 
             // 속성 강화 선택 (보스 첫 처치 보상): 결과 상자 위에 불투명하게 덮음. 고르기 전에는 다음 층으로 갈 수 없음
-            _boostScreen = Ui.Stretch(_resultScreen, "Boost");
+            _boostScreen = Ui.Stretch(_canvas, "Boost");
             Ui.Panel(_boostScreen, new Color(0.02f, 0.02f, 0.04f, 1f), true);
             var bt = Ui.Label(_boostScreen, "Title", "보스 처치 보상 · 속성 강화", 56, Ui.Gold, TextAnchor.UpperCenter, 60f);
             Ui.AddOutline(bt, 3f);
@@ -1138,7 +1141,6 @@ namespace PokerTower.Game
         {
             var pend = _progress.PendingElementChoices;
             _boostScreen.gameObject.SetActive(pend.Count > 0);
-            _resultPrimary.interactable = pend.Count == 0;
             if (pend.Count == 0) return;
             _boostScreen.SetAsLastSibling();
             for (int i = 0; i < _boostCards.Length; i++)
@@ -1159,8 +1161,10 @@ namespace PokerTower.Game
             var e = pend[idx];
             _progress.ChooseElementBoost(e);
             SaveProgress();
-            ShowBanner(ElementInfo.Korean(e) + "속성 강화!", Ui.ElementColor(e));
             RefreshBoostChoice();
+            RefreshTower();
+            ShowBanner(ElementInfo.Korean(e) + "속성 강화!", Ui.ElementColor(e));
+            _banner.transform.SetAsLastSibling();
         }
 
         private void ShowResult()
@@ -1186,8 +1190,8 @@ namespace PokerTower.Game
                 _floor = b.Setup.Floor + 1;
                 PlayerPrefs.SetInt(SaveKeyFloor, _floor);
                 PlayerPrefs.Save();
-                Ui.SetButtonLabel(_resultPrimary, _floor + "층으로");
-                _resultPrimary.onClick.AddListener(StartStage);
+                Ui.SetButtonLabel(_resultPrimary, "탑으로");
+                _resultPrimary.onClick.AddListener(ShowTower);
                 Ui.SetButtonLabel(_resultSecondary, "타이틀");
                 _resultSecondary.onClick.AddListener(ShowTitle);
             }
@@ -1201,11 +1205,10 @@ namespace PokerTower.Game
                 _resultBody.text = stats + "\n\n" + Ui.Colored("재도전 규칙은 기획서에서 미정이라, 같은 층을 다시 시작합니다. (속성은 새로 정해집니다)", Ui.TextDim);
                 Ui.SetButtonLabel(_resultPrimary, "다시 도전");
                 _resultPrimary.onClick.AddListener(StartStage);
-                Ui.SetButtonLabel(_resultSecondary, "타이틀");
-                _resultSecondary.onClick.AddListener(ShowTitle);
+                Ui.SetButtonLabel(_resultSecondary, "탑으로");
+                _resultSecondary.onClick.AddListener(ShowTower);
             }
             if (b.Phase == BattlePhase.Victory) _resultTitle.color = Ui.Gold;
-            RefreshBoostChoice(); // 고르지 않은 속성 강화가 남아 있으면 (앱을 껐다 켠 경우 포함) 먼저 고르게 함
         }
 
         // ═══════════════════════════ 묘지 (09.3 [확정] 클릭 시 전체 확인) ═══════════════════════════
@@ -1355,6 +1358,114 @@ namespace PokerTower.Game
             System.Array.Clear(_statPending, 0, _statPending.Length);
             _statScreen.gameObject.SetActive(false);
             RefreshStatsButton(_resultStats, "스탯");
+            if (_towerScreen.gameObject.activeSelf) RefreshTower();
+        }
+
+        // ═══════════════════════════ 탑 로드맵 ═══════════════════════════
+        // 층을 탑 모양으로 쌓아 보여 주고, 층을 누르면 그 층 에너미 정보를 보여 줌. 도전은 현재 층만.
+        // 보스 보상(속성 강화)을 고르지 않았으면 이 화면에 들어올 때 먼저 고르게 함 → 다음 층 진입 전에 반드시 선택.
+
+        private const int TowerSection = 10; // 한 화면에 보이는 층 수 (보스 주기와 같음)
+        private RectTransform _towerScreen;
+        private readonly Button[] _towerFloors = new Button[TowerSection];
+        private readonly Text[] _towerFloorText = new Text[TowerSection];
+        private Text _towerInfo, _towerHeader;
+        private Button _towerChallenge, _towerStats, _towerPrev;
+        private int _towerBase = 1;      // 지금 보이는 구간의 첫 층
+        private int _towerSelected = 1;
+
+        private void BuildTower()
+        {
+            _towerScreen = MakeScreen("Tower");
+            Ui.Panel(_towerScreen, new Color(0.03f, 0.03f, 0.06f, 1f), true);
+            _towerHeader = Ui.Label(_towerScreen, "Title", "", 52, Ui.Gold, TextAnchor.UpperCenter, 30f);
+            Ui.AddOutline(_towerHeader, 3f);
+
+            // 탑: 아래가 낮은 층. 위로 갈수록 살짝 좁아지는 계단 모양
+            var c = new Vector2(0.5f, 0.5f);
+            for (int i = 0; i < TowerSection; i++)
+            {
+                int idx = i;
+                float w = 560 - i * 18;
+                _towerFloors[i] = Ui.MakeButton(_towerScreen, "Floor" + i, "", c, new Vector2(-430, -380 + i * 80), new Vector2(w, 72),
+                                                Ui.PanelLight, 28, () => { _towerSelected = _towerBase + idx; RefreshTower(); });
+                _towerFloorText[i] = _towerFloors[i].GetComponentInChildren<Text>();
+                _towerFloorText[i].supportRichText = true;
+            }
+            Ui.MakeButton(_towerScreen, "Next", "▲ 위 10층", c, new Vector2(-430, 430), new Vector2(240, 48),
+                new Color(0.25f, 0.25f, 0.35f), 24, () => { _towerBase += TowerSection; _towerSelected = _towerBase; RefreshTower(); });
+            _towerPrev = Ui.MakeButton(_towerScreen, "Prev", "▼ 아래 10층", c, new Vector2(-430, -470), new Vector2(240, 48),
+                new Color(0.25f, 0.25f, 0.35f), 24, () => { _towerBase -= TowerSection; _towerSelected = _towerBase + TowerSection - 1; RefreshTower(); });
+
+            // 층 정보
+            var info = Ui.MakeRect(_towerScreen, "Info", c, c, c, new Vector2(400, 60), new Vector2(860, 680));
+            Ui.Panel(info, Ui.PanelLight);
+            _towerInfo = Ui.Label(info, "Text", "", 30, Color.white, TextAnchor.UpperLeft, 36f);
+
+            _towerChallenge = Ui.MakeButton(_towerScreen, "Challenge", "도전", c, new Vector2(400, -385), new Vector2(420, 100),
+                new Color(0.75f, 0.3f, 0.2f), 40, () => { if (_progress.PendingElementChoices.Count == 0 && _towerSelected == _floor) StartStage(); });
+            _towerStats = Ui.MakeButton(_towerScreen, "Stats", "스탯", c, new Vector2(790, -385), new Vector2(300, 80),
+                new Color(0.45f, 0.35f, 0.15f), 28, ShowStats);
+            Ui.MakeButton(_towerScreen, "Title", "타이틀", c, new Vector2(30, -385), new Vector2(240, 80),
+                new Color(0.35f, 0.3f, 0.4f), 28, ShowTitle);
+        }
+
+        private void ShowTower()
+        {
+            ShowOnly(_towerScreen);
+            _towerBase = (_floor - 1) / TowerSection * TowerSection + 1;
+            _towerSelected = _floor;
+            RefreshTower();
+            RefreshBoostChoice(); // 보스 보상을 아직 안 골랐으면 먼저 선택 (껐다 켠 경우 포함)
+        }
+
+        private void RefreshTower()
+        {
+            _towerHeader.text = "탑 · " + _towerBase + "~" + (_towerBase + TowerSection - 1) + "층";
+            _towerPrev.gameObject.SetActive(_towerBase > 1);
+            for (int i = 0; i < TowerSection; i++)
+            {
+                int f = _towerBase + i;
+                var tier = GameConfig.TierOf(f);
+                bool cleared = f <= _progress.HighestClearedFloor;
+                bool current = f == _floor;
+                string state = cleared ? Ui.Colored("   클리어", new Color(0.5f, 1f, 0.6f))
+                             : current ? Ui.Colored("   ◀ 도전", Ui.Gold) : Ui.Colored("   잠김", Ui.TextDim);
+                _towerFloorText[i].text = Ui.Colored(FloorLabel(f), TierColor(tier)) + state;
+                _towerFloors[i].GetComponent<Image>().color = f == _towerSelected ? new Color(0.18f, 0.3f, 0.55f)
+                    : current ? new Color(0.32f, 0.22f, 0.12f)
+                    : cleared ? new Color(0.14f, 0.22f, 0.17f) : new Color(0.13f, 0.14f, 0.19f);
+            }
+            _towerInfo.text = FloorInfo(_towerSelected);
+            bool pending = _progress.PendingElementChoices.Count > 0;
+            _towerChallenge.interactable = _towerSelected == _floor && !pending;
+            Ui.SetButtonLabel(_towerChallenge, _towerSelected == _floor ? _floor + "층 도전" : "현재 층만 도전 가능");
+            RefreshStatsButton(_towerStats, "스탯");
+        }
+
+        /// <summary>층 정보 (표시 전용). 수치는 Core의 에너미 생성 규칙(Battle.CreateEnemy)을 그대로 씀.</summary>
+        private string FloorInfo(int floor)
+        {
+            var en = Battle.CreateEnemy(floor);
+            bool special = en.Tier != EnemyTier.Normal;
+            var sb = new System.Text.StringBuilder();
+            string tierTag = special ? "[" + EnemyTierInfo.Korean(en.Tier) + "] " : "";
+            sb.Append(Ui.Colored("<size=42>" + tierTag + en.Name + "</size>", TierColor(en.Tier))).Append("\n\n");
+            sb.Append("HP " + en.MaxHp + "    ATK " + en.Atk + "    DEF " + en.BaseDef.ToString("0.#") + "    SPD " + en.BaseSpeed.ToString("0")).Append("\n\n");
+            sb.Append(Ui.Colored("행동", Ui.Gold)).Append("\n");
+            sb.Append("· 일반 공격 · 스킬 공격 (ATK ×" + GameConfig.EnemySkillMultiplier.ToString("0.#") + ")\n");
+            sb.Append("· 회복 (HP 70% 미만일 때) · 방어력 증가\n");
+            if (special)
+                sb.Append("· 디버프 제거 · 공격력 증가 · 치명타율 증가 (최대 " + PlayerStats.Percent(GameConfig.EnemyCritMax) + "%)\n");
+            sb.Append("\n").Append(Ui.Colored("첫 클리어 보상", Ui.Gold)).Append("\n");
+            if (floor <= _progress.HighestClearedFloor) sb.Append(Ui.Colored("이미 받음", Ui.TextDim));
+            else
+            {
+                sb.Append("스탯 포인트 +" + GameConfig.StatPointsFor(floor));
+                if (en.Tier == EnemyTier.Boss) sb.Append("  ·  속성 강화 (3개 중 1개 선택)");
+            }
+            sb.Append("\n\n").Append(Ui.Colored("스테이지 속성 5개와 메인 속성은 입장할 때 무작위로 정해집니다.", Ui.TextDim));
+            return sb.ToString();
         }
     }
 }
