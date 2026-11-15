@@ -11,7 +11,7 @@ namespace PokerTower.Core
     /// </summary>
     public enum BattlePhase { NotStarted, PlayerTurn, PlayerDiscard, PlayerForcedDiscard, BetweenTurns, EnemyTurn, Victory, Defeat }
 
-    public enum EnemyActionKind { NormalAttack, SkillAttack, Heal, DefUp, AtkUp, Cleanse, CritUp }
+    public enum EnemyActionKind { NormalAttack, SkillAttack, Heal, DefUp, AtkUp, Cleanse, CritUp, SpeedUp }
 
     public sealed class EnemyActionReport
     {
@@ -23,6 +23,7 @@ namespace PokerTower.Core
         public double DefGained;
         public int AtkGained;
         public double CritGained;
+        public int SpeedGained;
         /// <summary>이번 공격에 치명타가 발동했는지 (원 피해 × 1.5).</summary>
         public bool Critical;
         public bool CleansedBurn;
@@ -385,16 +386,22 @@ namespace PokerTower.Core
                     AddLog("에너미 회복 +" + r.Healed);
                     break;
                 case EnemyActionKind.DefUp:
-                    int add = Math.Min(GameConfig.EnemyDefUpMax, Math.Max(GameConfig.EnemyDefUpMin, Setup.Floor));
+                    int add = Rng.Range(GameConfig.EnemyDefUpMin, GameConfig.EnemyDefUpMax + 1);
                     Enemy.BaseDef += add;
                     r.DefGained = add;
                     AddLog("에너미 방어력 +" + add);
                     break;
                 case EnemyActionKind.AtkUp:
-                    int atkAdd = Math.Max(1, (int)Math.Round(Enemy.Atk * GameConfig.EnemyAtkUpRate));
+                    int atkAdd = GameConfig.EnemyAtkUpAmount;
                     Enemy.Atk += atkAdd;
                     r.AtkGained = atkAdd;
                     AddLog("에너미 공격력 +" + atkAdd);
+                    break;
+                case EnemyActionKind.SpeedUp:
+                    int spdAdd = Rng.Range(GameConfig.EnemySpeedUpMin, GameConfig.EnemySpeedUpMax + 1);
+                    Enemy.BaseSpeed += spdAdd; // 다음 행동 대기부터 반영
+                    r.SpeedGained = spdAdd;
+                    AddLog("에너미 속도 +" + spdAdd);
                     break;
                 case EnemyActionKind.CritUp:
                     double before = Enemy.CritChance;
@@ -431,19 +438,19 @@ namespace PokerTower.Core
         }
 
         /// <summary>
-        /// [확정] 행동권마다 공격 또는 비공격 하나만. [확정 v1.2] 일반 에너미는 디버프 제거·자기 버프 불가,
-        /// 엘리트·보스만 디버프 제거와 자기 버프(ATK 증가·치명타율 증가). [가정] 가중치와 조건은 GameConfig.
+        /// [확정] 행동권마다 공격 또는 비공격 하나만.
+        /// [사용자 결정 2026-11-15] 비공격은 후보끼리 같은 확률. 일반: ATK 증가·DEF 증가·회복.
+        /// 엘리트·보스: + SPD 증가·디버프 제거·치명타율 증가. 회복은 HP 70% 미만일 때만. 조건은 GameConfig 참고.
         /// </summary>
         private EnemyActionKind ChooseEnemyAction()
         {
             bool special = Enemy.Tier != EnemyTier.Normal;
-            var nonAttack = new List<EnemyActionKind>();
-            if (special && Enemy.HasDebuff) nonAttack.Add(EnemyActionKind.Cleanse);
+            var nonAttack = new List<EnemyActionKind> { EnemyActionKind.AtkUp, EnemyActionKind.DefUp };
             if (Enemy.Hp < Enemy.MaxHp * 0.7) nonAttack.Add(EnemyActionKind.Heal);
-            nonAttack.Add(EnemyActionKind.DefUp);
             if (special)
             {
-                nonAttack.Add(EnemyActionKind.AtkUp);
+                nonAttack.Add(EnemyActionKind.SpeedUp);
+                if (Enemy.HasDebuff) nonAttack.Add(EnemyActionKind.Cleanse);
                 if (Enemy.CritChance < GameConfig.EnemyCritMax - 1e-9) nonAttack.Add(EnemyActionKind.CritUp);
             }
 

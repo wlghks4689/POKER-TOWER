@@ -286,23 +286,56 @@ namespace PokerTower.Tests
             return count;
         }
 
-        [Test] public void NormalEnemy_NeverCleansesOrBuffs_1000Seeds()
+        // [사용자 결정 2026-11-15] 일반 에너미 비공격: ATK 증가·DEF 증가·회복만
+        [Test] public void NormalEnemy_OnlyAtkDefHeal_1000Seeds()
         {
             var count = RunBattlesCountingActions(new[] { 1, 2, 3, 4 }, 250); // 일반 층 × 250 = 1,000 시드
             Assert.IsFalse(count.ContainsKey(EnemyActionKind.Cleanse), "디버프 제거");
-            Assert.IsFalse(count.ContainsKey(EnemyActionKind.AtkUp), "ATK 증가");
+            Assert.IsFalse(count.ContainsKey(EnemyActionKind.SpeedUp), "SPD 증가");
             Assert.IsFalse(count.ContainsKey(EnemyActionKind.CritUp), "치명타율 증가");
-            Assert.IsTrue(count.ContainsKey(EnemyActionKind.Heal) && count.ContainsKey(EnemyActionKind.DefUp), "회복·DEF 증가는 나옴");
+            Assert.IsTrue(count.ContainsKey(EnemyActionKind.Heal) && count.ContainsKey(EnemyActionKind.DefUp) && count.ContainsKey(EnemyActionKind.AtkUp));
         }
 
-        [Test] public void EliteEnemy_UsesBuffs_CritCappedAt60()
+        // [사용자 결정 2026-11-15] 엘리트·보스 비공격 6종, 치명타율 상한 100%
+        [Test] public void EliteEnemy_UsesAllSixBuffs_CritUpTo100()
         {
             double maxCrit = 0;
             var count = RunBattlesCountingActions(new[] { 5 }, 300, b => maxCrit = Math.Max(maxCrit, b.Enemy.CritChance));
-            Assert.IsTrue(count.ContainsKey(EnemyActionKind.CritUp));
-            Assert.IsTrue(count.ContainsKey(EnemyActionKind.AtkUp));
-            Assert.IsTrue(count.ContainsKey(EnemyActionKind.Cleanse));
-            Assert.LessOrEqual(maxCrit, GameConfig.EnemyCritMax + 1e-9);
+            foreach (var k in new[] { EnemyActionKind.CritUp, EnemyActionKind.AtkUp, EnemyActionKind.DefUp, EnemyActionKind.Heal, EnemyActionKind.SpeedUp, EnemyActionKind.Cleanse })
+                Assert.IsTrue(count.ContainsKey(k), k.ToString());
+            Assert.AreEqual(1.0, GameConfig.EnemyCritMax, 1e-9);
+            Assert.LessOrEqual(maxCrit, 1.0 + 1e-9);
+        }
+
+        // [사용자 결정 2026-11-15] 수치: ATK +5, DEF +2~5, SPD +2~5. 후보끼리 같은 확률
+        [Test] public void EnemyBuffAmounts_AndEqualChance()
+        {
+            var atk = new HashSet<int>(); var def = new HashSet<int>(); var spd = new HashSet<int>();
+            var count = new Dictionary<EnemyActionKind, int>();
+            for (int seed = 0; seed < 400; seed++)
+            {
+                var b = new Battle(new StageSetup { Floor = 5, Seed = seed, MainElement = F, Elements = new List<Element> { F, W, Wd, M, E } });
+                b.Begin();
+                b.Player.MaxHp = b.Player.Hp = 100000; // 오래 버티며 행동을 많이 모음
+                for (int t = 0; t < 60 && !b.IsOver; t++)
+                {
+                    if (b.NextTurn() == Actor.Player) { SimpleAi.PlayTurn(b); continue; }
+                    b.Enemy.Hp = b.Enemy.MaxHp;                      // 회복 제외 → 후보 고정
+                    b.Enemy.Burn.Clear(); b.Enemy.Metal.Clear();     // 디버프 없음 → 디버프 제거 제외
+                    var r = b.RunEnemyTurn();
+                    if (r.Kind == EnemyActionKind.AtkUp) atk.Add(r.AtkGained);
+                    if (r.Kind == EnemyActionKind.DefUp) def.Add((int)r.DefGained);
+                    if (r.Kind == EnemyActionKind.SpeedUp) spd.Add(r.SpeedGained);
+                    if (r.Kind == EnemyActionKind.AtkUp || r.Kind == EnemyActionKind.DefUp || r.Kind == EnemyActionKind.SpeedUp)
+                        count[r.Kind] = (count.ContainsKey(r.Kind) ? count[r.Kind] : 0) + 1;
+                }
+            }
+            CollectionAssert.AreEquivalent(new[] { 5 }, atk);
+            CollectionAssert.AreEquivalent(new[] { 2, 3, 4, 5 }, def);
+            CollectionAssert.AreEquivalent(new[] { 2, 3, 4, 5 }, spd);
+            // 치명타율 증가가 100%에 닿기 전까지는 4개 후보 → ATK·DEF·SPD 횟수가 서로 비슷해야 함 (±25%)
+            double avg = count.Values.Average();
+            foreach (var kv in count) Assert.That(kv.Value, Is.InRange(avg * 0.75, avg * 1.25), kv.Key.ToString());
         }
 
         [Test] public void Crit_Damage_Is150Percent_BeforeDef()

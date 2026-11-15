@@ -114,31 +114,38 @@ namespace PokerTower.Core
         public const double EliteAtkMultiplier = 1.15;
 
         /// [가정] 일반 에너미 행동 가중치. 12.2의 기존 확률안(일반 60/스킬 40)은 비공격 행동 추가 전 잠정안이라 재배분함.
-        /// [가정 v1.2] 일반 에너미 비공격 후보: 회복(HP 70% 미만일 때), DEF 증가만 ([확정] 디버프 제거·자기 버프 불가).
+        /// [가정 v1.2] 일반 에너미 가중치 (공격 / 스킬 / 비공격). 비공격 후보는 아래 엘리트·보스 설명 참고.
         public const int EnemyWeightNormalAttack = 55;
         public const int EnemyWeightSkillAttack = 30;
         public const int EnemyWeightNonAttack = 15;
-        /// [가정 v1.2] 엘리트·보스 가중치. 비공격 후보: 디버프 제거(디버프가 있을 때만), 회복(HP 70% 미만일 때), DEF 증가, ATK 증가, 치명타율 증가.
+        /// [사용자 결정 2026-11-15] 비공격 행동은 후보끼리 모두 같은 확률.
+        ///   일반: ATK 증가 · DEF 증가 · 회복 (3개)
+        ///   엘리트·보스: ATK 증가 · DEF 증가 · 회복 · SPD 증가 · 디버프 제거 · 치명타율 증가 (6개)
+        ///   회복은 HP 70% 미만일 때만 후보 (70% 이상이면 나머지가 같은 확률로 나눔).
+        ///   [가정] 효과 없는 행동은 후보에서 뺌: 디버프 제거는 디버프가 있을 때만, 치명타율 증가는 100% 미만일 때만.
         public const int SpecialWeightNormalAttack = 45;
         public const int SpecialWeightSkillAttack = 30;
         public const int SpecialWeightNonAttack = 25;
         /// [확정 v1.2] 치명타가 발동한 공격은 150% 피해 (v1.3부터 플레이어도 적용).
         /// [가정] 에너미 치명타: 원 피해 × 1.5 → 플레이어 DEF 경감 → 쉴드 흡수.
         public const double CritMultiplier = 1.5;
-        /// [가정 v1.2] 치명타율: 기본 0%, 치명타율 증가 1회당 +15%p, 최대 60%. 전투 끝까지 유지·누적.
-        ///             최대치에 도달하면 치명타율 증가는 후보에서 뺌 [가정].
+        /// [가정 v1.2] 치명타율: 기본 0%, 치명타율 증가 1회당 +15%p. 전투 끝까지 유지·누적.
+        /// [사용자 결정 2026-11-15] 상한 100% (60% 제한 없앰).
         public const double EnemyCritUpRate = 0.15;
-        public const double EnemyCritMax = 0.60;
+        public const double EnemyCritMax = 1.0;
         /// [가정] 스킬 공격 배율.
         public const double EnemySkillMultiplier = 1.5;
         /// [확정] 하층 일반 몬스터 회복: 잃은 HP의 5~10%.
         public const double EnemyHealMinRate = 0.05;
         public const double EnemyHealMaxRate = 0.10;
-        /// [확정] DEF 증가 행동 1~10 (스테이지 레벨 비례). [가정] 층 1 → 1, 층 10 이상 → 10.
-        public const int EnemyDefUpMin = 1;
-        public const int EnemyDefUpMax = 10;
-        /// [가정] ATK 증가 행동량: 1회당 현재 ATK의 +10%. 전투 끝까지 유지·누적.
-        public const double EnemyAtkUpRate = 0.10;
+        /// [사용자 결정 2026-11-15] DEF 증가 행동: 2~5 무작위 (양끝 포함). 전투 끝까지 유지·누적.
+        public const int EnemyDefUpMin = 2;
+        public const int EnemyDefUpMax = 5;
+        /// [사용자 결정 2026-11-15] ATK 증가 행동: 1회당 +5 (고정). 전투 끝까지 유지·누적.
+        public const int EnemyAtkUpAmount = 5;
+        /// [사용자 결정 2026-11-15] SPD 증가 행동 (엘리트·보스만): 2~5 무작위 (양끝 포함). 전투 끝까지 유지·누적.
+        public const int EnemySpeedUpMin = 2;
+        public const int EnemySpeedUpMax = 5;
 
         /// <summary>족보 특성 계수 C ([확정] 2026-11-12).</summary>
         public static double Coefficient(HandType hand)

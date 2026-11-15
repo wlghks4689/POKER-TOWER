@@ -949,6 +949,10 @@ namespace PokerTower.Game
                     yield return _stage.PlayEnemyBuff(new Color(1f, 0.5f, 0.3f));
                     Popup(_stage.EnemyScreenPoint(), "ATK +" + r.AtkGained, new Color(1f, 0.5f, 0.3f), 40);
                     break;
+                case EnemyActionKind.SpeedUp:
+                    yield return _stage.PlayEnemyBuff(new Color(0.5f, 0.9f, 1f));
+                    Popup(_stage.EnemyScreenPoint(), "SPD +" + r.SpeedGained, new Color(0.5f, 0.9f, 1f), 40);
+                    break;
                 case EnemyActionKind.CritUp:
                     yield return _stage.PlayEnemyBuff(BuffColor);
                     Popup(_stage.EnemyScreenPoint(), "치명타율 " + PlayerStats.Percent(_battle.Enemy.CritChance) + "%", BuffColor, 40);
@@ -1454,9 +1458,9 @@ namespace PokerTower.Game
             sb.Append("HP " + en.MaxHp + "    ATK " + en.Atk + "    DEF " + en.BaseDef.ToString("0.#") + "    SPD " + en.BaseSpeed.ToString("0")).Append("\n\n");
             sb.Append(Ui.Colored("행동", Ui.Gold)).Append("\n");
             sb.Append("· 일반 공격 · 스킬 공격 (ATK ×" + GameConfig.EnemySkillMultiplier.ToString("0.#") + ")\n");
-            sb.Append("· 회복 (HP 70% 미만일 때) · 방어력 증가\n");
+            sb.Append("· 공격력 증가 · 방어력 증가 · 회복\n");
             if (special)
-                sb.Append("· 디버프 제거 · 공격력 증가 · 치명타율 증가 (최대 " + PlayerStats.Percent(GameConfig.EnemyCritMax) + "%)\n");
+                sb.Append("· 속도 증가 · 디버프 제거 · 치명타율 증가\n");
             sb.Append("\n").Append(Ui.Colored("첫 클리어 보상", Ui.Gold)).Append("\n");
             if (floor <= _progress.HighestClearedFloor) sb.Append(Ui.Colored("이미 받음", Ui.TextDim));
             else
